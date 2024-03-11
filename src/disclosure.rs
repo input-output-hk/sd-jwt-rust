@@ -15,11 +15,11 @@ pub(crate) struct SDJWTDisclosure {
 impl SDJWTDisclosure  {
     pub(crate) fn new<V>(key: Option<String>, value: V) -> Self where V: ToString {
         #[cfg(not(feature = "mock_salts"))]
-        let salt = generate_salt();
+            let salt = generate_salt();
         let mut value_str = value.to_string();
 
         #[cfg(feature = "mock_salts")]
-        let salt = {
+            let salt = {
             value_str = value_str
                 .replace(":[", ": [")
                 .replace(',', ", ")
