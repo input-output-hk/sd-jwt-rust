@@ -1,0 +1,38 @@
+[package]
+name = "sdjwtwrapper"
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0 OR MIT"
+description = "Rust UniFfi Wrapper for a reference implementation of the IETF SD-JWT specification (v7)."
+rust-version = "1.67.0"
+authors = ["Ahmed Moussa <ahmed.moussa@iohk.io>"]
+repository = "https://github.com/input-output-hk/sd-jwt-rust/"
+# documentation = "https://docs.rs/sd-jwt-rs"
+homepage = "https://github.com/input-output-hk/sd-jwt-rust/"
+
+[dependencies]
+sd-jwt-rs = { path = "../" }
+log = "0.4"
+jsonwebtoken = "9.2"
+thiserror = "1.0.51"
+strum = { version = "0.25", default-features = false, features = ["std", "derive"] }
+serde = { version = "1.0.193", features = ["derive"] }
+serde_json = { version = "1.0.113", features = ["preserve_order"] }
+uniffi = { version = "0.26.1", features = [ "build", "cli" ]}
+
+[dev-dependencies]
+rstest = "0.18.2"
+regex = "1.10"
+
+[build-dependencies]
+uniffi = { version = "0.26.1", features = [ "build", "cli" ] }
+
+[[bin]]
+# This can be whatever name makes sense for your project, but the rest of this tutorial assumes uniffi-bindgen.
+name = "uniffi-bindgen"
+path = "./uniffi-bindgen.rs"
+
+[lib]
+# name = "uniffi_sd_jwt"
+crate-type = ["staticlib", "lib", "cdylib"]
+path = "src/lib.rs"

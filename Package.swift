@@ -1,0 +1,39 @@
+// swift-tools-version:5.7
+import PackageDescription
+
+let package = Package(
+    name: "SDJWTSwift",
+    platforms: [
+        .iOS(.v13),
+        .macOS(.v12)
+    ],
+    products: [
+        .library(
+            name: "SDJWTSwift",
+            type: .dynamic,
+            targets: ["SDJWTSwift"]
+        ),
+    ],
+    targets: [
+        .target(
+            name: "SDJWTSwift",
+            dependencies: ["sdjwtwrapperFFI"],
+            path: "wrapper/output-frameworks/sd-jwt-swift/SDJWTSwift/Sources/Swift"
+        ),
+        .target(
+            name: "sdjwtwrapperFFI",
+            dependencies: ["libsdjwt"],
+            path: "./wrapper/output-frameworks/sd-jwt-swift/SDJWTSwift/Sources/C"),
+        // LOCAL
+//       .binaryTarget(
+//           name: "libsdjwt",
+//           path: "./wrapper/output-frameworks/sd-jwt-swift/libsdjwt.xcframework.zip"
+//       )
+        // RELEASE
+         .binaryTarget(
+             name: "libsdjwt",
+             url: "https://github.com/input-output-hk/sd-jwt-rust/releases/download/0.4.0/libsdjwt.xcframework.zip",
+             checksum: "2cbb147f58dd4d59990c1fc01302e63aafd63673b64310946420893f639b1f67"
+         )
+    ]
+)

@@ -53,7 +53,7 @@ pub(crate) struct SDJWTCommon {
     unverified_input_sd_jwt_payload: Option<Map<String, Value>>,
     hash_to_decoded_disclosure: HashMap<String, Value>,
     hash_to_disclosure: HashMap<String, String>,
-    input_disclosures: Vec<String>,
+    input_disclosures: Vec<String>
 }
 
 #[derive(Default, Serialize, Deserialize, Clone, Eq, PartialEq, Debug)]
@@ -173,7 +173,7 @@ impl SDJWTCommon {
 
     fn parse_json_sd_jwt(&mut self, sd_jwt_with_disclosures: String) -> Result<()> {
         let parsed_sd_jwt_json: SDJWTJson = serde_json::from_str(&sd_jwt_with_disclosures)
-            .map_err(|e| Error::DeserializationError(e.to_string()))?;
+            .map_err(|e| Error::DeserializationError(e.to_string()))?;   
         self.unverified_sd_jwt_json = Some(parsed_sd_jwt_json.clone());
         self.unverified_input_key_binding_jwt = parsed_sd_jwt_json.kb_jwt;
         self.input_disclosures = parsed_sd_jwt_json.disclosures;

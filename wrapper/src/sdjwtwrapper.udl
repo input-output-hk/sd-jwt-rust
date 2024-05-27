@@ -1,0 +1,101 @@
+[Error]
+enum SDJWTError {
+    "ConversionError",
+    "DeserializationError",
+    "DataFieldMismatch",
+    "DuplicateDigestError",
+    "DuplicateKeyError",
+    "InvalidDisclosure",
+    "InvalidArrayDisclosureObject",
+    "InvalidPath",
+    "IndexOutOfBounds",
+    "InvalidState",
+    "InvalidInput",
+    "KeyNotFound",
+    "Unspecified"
+};
+enum SDJWTSerializationFormat {
+    "JSON",
+    "Compact"
+};
+interface EncodingKeyValue {
+    [Name=from_secret]
+    constructor(string secret);
+    [Throws=SDJWTError, Name=from_base64_secret]
+    constructor(string b64);
+    [Throws=SDJWTError, Name=from_rsa_pem]
+    constructor(string rsa_pem);
+    [Name=from_rsa_der]
+    constructor(string rsa_der);
+    [Throws=SDJWTError, Name=from_ec_pem]
+    constructor(string ec_pem);
+    [Throws=SDJWTError, Name=from_ed_pem]
+    constructor(string ed_pem);
+    [Name=from_ec_der]
+    constructor(string ec_der);
+    [Name=from_ed_der]
+    constructor(string ed_der);
+};
+interface JwkValue {
+    [Throws=SDJWTError]
+    constructor(string jwk_json);
+    string get_json();
+};
+interface SDJWTIssuerWrapper {
+    constructor(EncodingKeyValue issuer_key, string? sign_alg);
+    [Throws=SDJWTError]
+    string issue_sd_jwt_no_sd_claims(
+        string user_claims,
+        JwkValue? holder_key,
+        boolean add_decoy_claims,
+        SDJWTSerializationFormat serialization_format
+    );
+    [Throws=SDJWTError]
+    string issue_sd_jwt_top_level(
+        string user_claims,
+        JwkValue? holder_key,
+        boolean add_decoy_claims,
+        SDJWTSerializationFormat serialization_format
+    );
+    [Throws=SDJWTError]
+    string issue_sd_jwt_all_level(
+        string user_claims,
+        JwkValue? holder_key,
+        boolean add_decoy_claims,
+        SDJWTSerializationFormat serialization_format
+    );
+    [Throws=SDJWTError]
+    string issue_sd_jwt_custom(
+        string user_claims,
+        sequence<string> json_paths,
+        JwkValue? holder_key,
+        boolean add_decoy_claims,
+        SDJWTSerializationFormat serialization_format
+    );
+};
+interface SDJWTHolderWrapper {
+    [Throws=SDJWTError]
+    constructor(string sd_jwt_with_disclosures, SDJWTSerializationFormat serialization_format);
+    [Throws=SDJWTError]
+    string create_presentation(
+        string claims_to_disclose_json,
+        string? nonce,
+        string? aud,
+        EncodingKeyValue? holder_key,
+        string? sign_alg
+    );
+};
+interface SDJWTVerifierWrapper {
+    [Throws=SDJWTError]
+    constructor(
+        string sd_jwt_presentation,
+        string public_key,
+        string? expected_aud,
+        string? expected_nonce,
+        SDJWTSerializationFormat serialization_format
+    );
+    string get_verified_claims();
+    boolean verify(string user_claims_json);
+};
+
+namespace sdjwtwrapper {};

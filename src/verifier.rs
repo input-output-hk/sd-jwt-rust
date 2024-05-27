@@ -9,8 +9,8 @@ use std::option::Option;
 use std::str::FromStr;
 use std::string::String;
 use std::vec::Vec;
+use crate::utils::{base64_hash, base64url_decode};
 
-use crate::utils::base64_hash;
 use crate::{
     SDJWTCommon, CNF_KEY, COMBINED_SERIALIZATION_FORMAT_SEPARATOR, DEFAULT_DIGEST_ALG,
     DEFAULT_SIGNING_ALG, DIGEST_ALG_KEY, JWK_KEY, KB_DIGEST_KEY, KB_JWT_TYP_HEADER, SD_DIGESTS_KEY,
@@ -49,6 +49,9 @@ impl SDJWTVerifier {
         expected_nonce: Option<String>,
         serialization_format: SDJWTSerializationFormat,
     ) -> Result<Self> {
+
+        let sign_alg: String = Self::extract_signing_algorithm(&sd_jwt_presentation, serialization_format.clone())?;
+
         let mut verifier = SDJWTVerifier {
             sd_jwt_payload: serde_json::Map::new(),
             _holder_public_key_payload: None,
@@ -61,16 +64,17 @@ impl SDJWTVerifier {
             verified_claims: Value::Null,
         };
 
+        
         verifier.sd_jwt_engine.parse_sd_jwt(sd_jwt_presentation)?;
         verifier.sd_jwt_engine.create_hash_mappings()?;
-        verifier.verify_sd_jwt(Some(DEFAULT_SIGNING_ALG.to_owned()))?;
+        verifier.verify_sd_jwt(Some(sign_alg.clone()))?;
         verifier.verified_claims = verifier.extract_sd_claims()?;
 
         if let (Some(expected_aud), Some(expected_nonce)) = (&expected_aud, &expected_nonce) {
             verifier.verify_key_binding_jwt(
                 expected_aud.to_owned(),
                 expected_nonce.to_owned(),
-                Some(DEFAULT_SIGNING_ALG),
+                Some(&sign_alg)
             )?;
         } else if expected_aud.is_some() || expected_nonce.is_some() {
             return Err(Error::InvalidInput(
@@ -82,6 +86,60 @@ impl SDJWTVerifier {
         Ok(verifier)
     }
 
+    /// Extracts the signing algorithm from a JWT presentation based on its serialization format.
+    ///
+    /// # Arguments
+    /// * `sd_jwt_presentation` - The JWT presentation string.
+    /// * `serialization_format` - The serialization format of the JWT.
+    ///
+    /// # Returns
+    /// * `Result<String, Error>` - The result containing the signing algorithm or an error.
+    pub fn extract_signing_algorithm(sd_jwt_presentation: &str, serialization_format: SDJWTSerializationFormat) -> Result<String> {
+        match serialization_format {
+            SDJWTSerializationFormat::Compact => {
+                let parts: Vec<&str> = sd_jwt_presentation.split('.').collect();
+                if parts.len() < 2 {
+                    return Err(Error::DeserializationError("Invalid JWT format".to_string()));
+                }
+                let jwt_header = parts[0];
+                Self::decode_and_get_sign_algorithm(jwt_header)
+            },
+            SDJWTSerializationFormat::JSON => {
+                let json: Value = serde_json::from_str(sd_jwt_presentation)
+                    .map_err(|e| Error::DeserializationError(e.to_string()))?;
+
+                let protected = json
+                    .get("protected")
+                    .and_then(Value::as_str)
+                    .ok_or(Error::InvalidInput("Protected field missing or not a string".to_string()))?;
+
+                Self::decode_and_get_sign_algorithm(protected)
+            }
+        }
+    }
+
+    /// Decodes a base64url encoded string and extracts the "alg" field from the JSON object.
+    ///
+    /// # Arguments
+    /// * `encoded` - The base64url encoded string.
+    ///
+    /// # Returns
+    /// * `Result<String, Error>` - The result containing the algorithm or an error.
+    fn decode_and_get_sign_algorithm(encoded: &str) -> Result<String> {
+        let decoded = base64url_decode(encoded)
+            .map_err(|_| Error::DeserializationError("Failed to decode base64url".to_string()))?;
+        let decoded_str = std::str::from_utf8(&decoded)
+            .map_err(|_| Error::DeserializationError("Failed to convert bytes to string".to_string()))?;
+        let json_sign_alg: Value = serde_json::from_str(decoded_str)
+            .map_err(|e| Error::DeserializationError(e.to_string()))?;
+        let sign_alg = json_sign_alg.get("alg")
+            .and_then(Value::as_str)
+            .map(String::from)
+            .ok_or(Error::DeserializationError("header without sign_alg".to_string()))?;
+
+        Ok(sign_alg)
+    }
+
     fn verify_sd_jwt(&mut self, sign_alg: Option<String>) -> Result<()> {
         let sd_jwt = self
             .sd_jwt_engine
@@ -90,7 +148,6 @@ impl SDJWTVerifier {
             .ok_or(Error::ConversionError("reference".to_string()))?;
         let parsed_header_sd_jwt = jsonwebtoken::decode_header(sd_jwt)
             .map_err(|e| Error::DeserializationError(e.to_string()))?;
-
         let unverified_issuer = self
             .sd_jwt_engine
             .unverified_input_sd_jwt_payload
@@ -99,11 +156,16 @@ impl SDJWTVerifier {
             .as_str()
             .ok_or(Error::ConversionError("str".to_string()))?;
         let issuer_public_key = (self.cb_get_issuer_key)(unverified_issuer, &parsed_header_sd_jwt);
-
+        
+        let algorithm = match sign_alg {
+            Some(alg_str) => Algorithm::from_str(&alg_str)
+                .map_err(|e| Error::DeserializationError(e.to_string()))?,
+            None => Algorithm::ES256, // Default or handle as needed
+        };
         let claims = jsonwebtoken::decode(
             sd_jwt,
             &issuer_public_key,
-            &Validation::new(Algorithm::ES256),
+            &Validation::new(algorithm),
         )
             .map_err(|e| Error::DeserializationError(format!("Cannot decode jwt: {}", e)))?
             .claims;
@@ -111,6 +173,7 @@ impl SDJWTVerifier {
         let _ = sign_alg; //FIXME check algo
 
         self.sd_jwt_payload = claims;
+
         self._holder_public_key_payload = self
             .sd_jwt_payload
             .get(CNF_KEY)
@@ -280,7 +343,7 @@ impl SDJWTVerifier {
         let mut disclosed_claims: Map<String, Value> = serde_json::Map::new();
 
         for (key, value) in nested_sd_jwt_claims {
-            if key != SD_DIGESTS_KEY && key != DIGEST_ALG_KEY {
+            if key != SD_DIGESTS_KEY && key != DIGEST_ALG_KEY && key != CNF_KEY {
                 disclosed_claims.insert(key.to_owned(), self.unpack_disclosed_claims(value)?);
             }
         }
@@ -371,12 +434,130 @@ impl SDJWTVerifier {
 mod tests {
     use crate::issuer::ClaimsForSelectiveDisclosureStrategy;
     use crate::{SDJWTHolder, SDJWTIssuer, SDJWTVerifier, SDJWTSerializationFormat};
+    use jsonwebtoken::jwk::Jwk;
     use jsonwebtoken::{DecodingKey, EncodingKey};
     use serde_json::{json, Value};
 
     const PRIVATE_ISSUER_PEM: &str = "-----BEGIN PRIVATE KEY-----\nMIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgUr2bNKuBPOrAaxsR\nnbSH6hIhmNTxSGXshDSUD1a1y7ihRANCAARvbx3gzBkyPDz7TQIbjF+ef1IsxUwz\nX1KWpmlVv+421F7+c1sLqGk4HUuoVeN8iOoAcE547pJhUEJyf5Asc6pP\n-----END PRIVATE KEY-----\n";
     const PUBLIC_ISSUER_PEM: &str = "-----BEGIN PUBLIC KEY-----\nMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEb28d4MwZMjw8+00CG4xfnn9SLMVM\nM19SlqZpVb/uNtRe/nNbC6hpOB1LqFXjfIjqAHBOeO6SYVBCcn+QLHOqTw==\n-----END PUBLIC KEY-----\n";
+    const PRIVATE_ISSUER_ED25519_PEM: &str = "-----BEGIN PRIVATE KEY-----\nMFECAQEwBQYDK2VwBCIEIF93k6rxZ8W38cm0rOwfGdH+YY3k10hP+7gd0falPLg0\ngSEAdW31QyWzfed4EPcw1rYuUa1QU+fXEL0HhdAfYZRkihc=\n-----END PRIVATE KEY-----\n";
+    const PUBLIC_ISSUER_ED25519_PEM: &str = "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAdW31QyWzfed4EPcw1rYuUa1QU+fXEL0HhdAfYZRkihc=\n-----END PUBLIC KEY-----\n";
+    const PRIVATE_HOLDER_ED25519_PEM: &str = "-----BEGIN PRIVATE KEY-----\nMFECAQEwBQYDK2VwBCIEIL3S6UEvvfBgwAOkm34ODPqX7xVzETZ/0EqHixGMyEal\ngSEAvxOLRIR15uUAJdCGcBCNydY6ImqAhY2hihJXwLqiQow=\n-----END PRIVATE KEY-----\n";
+    const PUBLIC_HOLDER_ED25519_PEM: &str = "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAvxOLRIR15uUAJdCGcBCNydY6ImqAhY2hihJXwLqiQow=\n-----END PUBLIC KEY-----\n";
+    const PUBLIC_HOLDER_ED25519_JWK: &str = r#"{
+        "kty": "OKP",  
+        "crv": "Ed25519", 
+        "x": "vxOLRIR15uUAJdCGcBCNydY6ImqAhY2hihJXwLqiQow",
+        "alg": "EdDSA",
+        "use": "sig"
+    }"#;
 
+    #[test]
+    fn verify_full_presentation_with_holder_binding_json_format() {
+
+        let user_claims = json!({
+            "sub": "6c5c0a49-b589-431d-bae7-219122a9ec2c",
+            "iss": "https://example.com/issuer",
+            "iat": 1683000000,
+            "exp": 1883000000,
+            "address": {
+                "street_address": "Schulstr. 12",
+                "locality": "Schulpforta",
+                "region": "Sachsen-Anhalt",
+                "country": "DE"
+            }
+        });
+        let private_issuer_bytes = PRIVATE_ISSUER_ED25519_PEM.as_bytes();
+        let issuer_key = EncodingKey::from_ed_pem(private_issuer_bytes).unwrap();
+
+        let jwk_holder: Jwk = serde_json::from_str(PUBLIC_HOLDER_ED25519_JWK).unwrap();
+
+        let sd_jwt = SDJWTIssuer::new(issuer_key, Some("EdDSA".to_string())).issue_sd_jwt(
+            user_claims.clone(),
+            ClaimsForSelectiveDisclosureStrategy::AllLevels,
+            Some(jwk_holder),
+            false,
+            SDJWTSerializationFormat::JSON, // Changed to Json format
+        )
+            .unwrap();
+        let holder_key = EncodingKey::from_ed_pem(PRIVATE_HOLDER_ED25519_PEM.as_bytes()).unwrap();
+
+        let presentation = SDJWTHolder::new(sd_jwt.clone(), SDJWTSerializationFormat::JSON) // Changed to Json format
+            .unwrap()
+            .create_presentation(
+                user_claims.as_object().unwrap().clone(),
+                Some("1234455678".to_string()),
+                Some("verifier.com".to_string()),
+                Some(holder_key),
+                Some("EdDSA".to_string())
+            )
+            .unwrap();
+
+        let verified_claims = SDJWTVerifier::new(
+            presentation,
+            Box::new(|_, _| {
+                let public_issuer_bytes = PUBLIC_ISSUER_ED25519_PEM.as_bytes();
+                DecodingKey::from_ed_pem(public_issuer_bytes).unwrap()
+            }),
+            Some("verifier.com".to_string()),
+            Some("1234455678".to_string()),
+            SDJWTSerializationFormat::JSON, // Changed to Json format
+        )
+            .unwrap()
+            .verified_claims;
+        assert_eq!(user_claims, verified_claims);
+    }
+    #[test]
+    fn verify_full_presentation_json_format() {
+
+        let user_claims = json!({
+            "sub": "6c5c0a49-b589-431d-bae7-219122a9ec2c",
+            "iss": "https://example.com/issuer",
+            "iat": 1683000000,
+            "exp": 1883000000,
+            "address": {
+                "street_address": "Schulstr. 12",
+                "locality": "Schulpforta",
+                "region": "Sachsen-Anhalt",
+                "country": "DE"
+            }
+        });
+        let private_issuer_bytes = PRIVATE_ISSUER_ED25519_PEM.as_bytes();
+        let issuer_key = EncodingKey::from_ed_pem(private_issuer_bytes).unwrap();
+        let sd_jwt = SDJWTIssuer::new(issuer_key, Some("EdDSA".to_string())).issue_sd_jwt(
+            user_claims.clone(),
+            ClaimsForSelectiveDisclosureStrategy::AllLevels,
+            None,
+            false,
+            SDJWTSerializationFormat::JSON, // Changed to Json format
+        )
+            .unwrap();
+       
+        let presentation = SDJWTHolder::new(sd_jwt.clone(), SDJWTSerializationFormat::JSON) // Changed to Json format
+            .unwrap()
+            .create_presentation(
+                user_claims.as_object().unwrap().clone(),
+                None,
+                None,
+                None,
+                None
+            )
+            .unwrap();
+        assert_eq!(sd_jwt, presentation);
+        let verified_claims = SDJWTVerifier::new(
+            presentation,
+            Box::new(|_, _| {
+                let public_issuer_bytes = PUBLIC_ISSUER_ED25519_PEM.as_bytes();
+                DecodingKey::from_ed_pem(public_issuer_bytes).unwrap()
+            }),
+            None,
+            None,
+            SDJWTSerializationFormat::JSON, // Changed to Json format
+        )
+            .unwrap()
+            .verified_claims;
+        assert_eq!(user_claims, verified_claims);
+    }
     #[test]
     fn verify_full_presentation() {
         let user_claims = json!({
