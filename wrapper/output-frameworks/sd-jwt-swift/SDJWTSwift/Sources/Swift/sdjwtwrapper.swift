@@ -104,12 +104,12 @@ private func readBytes(_ reader: inout (data: Data, offset: Data.Index), count: 
 
 // Reads a float at the current offset.
 private func readFloat(_ reader: inout (data: Data, offset: Data.Index)) throws -> Float {
-    return Float(bitPattern: try readInt(&reader))
+    return try Float(bitPattern: readInt(&reader))
 }
 
 // Reads a float at the current offset.
 private func readDouble(_ reader: inout (data: Data, offset: Data.Index)) throws -> Double {
-    return Double(bitPattern: try readInt(&reader))
+    return try Double(bitPattern: readInt(&reader))
 }
 
 // Indicates if the offset has reached the end of the buffer.
@@ -282,7 +282,7 @@ private func uniffiCheckCallStatus(
         // with the message.  But if that code panics, then it just sends back
         // an empty buffer.
         if callStatus.errorBuf.len > 0 {
-            throw UniffiInternalError.rustPanic(try FfiConverterString.lift(callStatus.errorBuf))
+            throw try UniffiInternalError.rustPanic(FfiConverterString.lift(callStatus.errorBuf))
         } else {
             callStatus.errorBuf.deallocate()
             throw UniffiInternalError.rustPanic("Rust panic")
@@ -347,7 +347,7 @@ private struct FfiConverterString: FfiConverter {
 
     public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> String {
         let len: Int32 = try readInt(&buf)
-        return String(bytes: try readBytes(&buf, count: Int(len)), encoding: String.Encoding.utf8)!
+        return try String(bytes: readBytes(&buf, count: Int(len)), encoding: String.Encoding.utf8)!
     }
 
     public static func write(_ value: String, into buf: inout [UInt8]) {
@@ -380,7 +380,7 @@ public class EncodingKeyValue:
     }
 
     public static func fromBase64Secret(b64: String) throws -> EncodingKeyValue {
-        return EncodingKeyValue(unsafeFromRawPointer: try rustCallWithError(FfiConverterTypeSDJWTError.lift) {
+        return try EncodingKeyValue(unsafeFromRawPointer: rustCallWithError(FfiConverterTypeSDJWTError.lift) {
             uniffi_sdjwtwrapper_fn_constructor_encodingkeyvalue_from_base64_secret(
                 FfiConverterString.lower(b64), $0
             )
@@ -396,7 +396,7 @@ public class EncodingKeyValue:
     }
 
     public static func fromEcPem(ecPem: String) throws -> EncodingKeyValue {
-        return EncodingKeyValue(unsafeFromRawPointer: try rustCallWithError(FfiConverterTypeSDJWTError.lift) {
+        return try EncodingKeyValue(unsafeFromRawPointer: rustCallWithError(FfiConverterTypeSDJWTError.lift) {
             uniffi_sdjwtwrapper_fn_constructor_encodingkeyvalue_from_ec_pem(
                 FfiConverterString.lower(ecPem), $0
             )
@@ -412,7 +412,7 @@ public class EncodingKeyValue:
     }
 
     public static func fromEdPem(edPem: String) throws -> EncodingKeyValue {
-        return EncodingKeyValue(unsafeFromRawPointer: try rustCallWithError(FfiConverterTypeSDJWTError.lift) {
+        return try EncodingKeyValue(unsafeFromRawPointer: rustCallWithError(FfiConverterTypeSDJWTError.lift) {
             uniffi_sdjwtwrapper_fn_constructor_encodingkeyvalue_from_ed_pem(
                 FfiConverterString.lower(edPem), $0
             )
@@ -428,7 +428,7 @@ public class EncodingKeyValue:
     }
 
     public static func fromRsaPem(rsaPem: String) throws -> EncodingKeyValue {
-        return EncodingKeyValue(unsafeFromRawPointer: try rustCallWithError(FfiConverterTypeSDJWTError.lift) {
+        return try EncodingKeyValue(unsafeFromRawPointer: rustCallWithError(FfiConverterTypeSDJWTError.lift) {
             uniffi_sdjwtwrapper_fn_constructor_encodingkeyvalue_from_rsa_pem(
                 FfiConverterString.lower(rsaPem), $0
             )
@@ -503,7 +503,7 @@ public class JwkValue:
     }
 
     public convenience init(jwkJson: String) throws {
-        self.init(unsafeFromRawPointer: try rustCallWithError(FfiConverterTypeSDJWTError.lift) {
+        try self.init(unsafeFromRawPointer: rustCallWithError(FfiConverterTypeSDJWTError.lift) {
             uniffi_sdjwtwrapper_fn_constructor_jwkvalue_new(
                 FfiConverterString.lower(jwkJson), $0
             )
@@ -583,7 +583,7 @@ public class SdjwtHolderWrapper:
     }
 
     public convenience init(sdJwtWithDisclosures: String, serializationFormat: SdjwtSerializationFormat) throws {
-        self.init(unsafeFromRawPointer: try rustCallWithError(FfiConverterTypeSDJWTError.lift) {
+        try self.init(unsafeFromRawPointer: rustCallWithError(FfiConverterTypeSDJWTError.lift) {
             uniffi_sdjwtwrapper_fn_constructor_sdjwtholderwrapper_new(
                 FfiConverterString.lower(sdJwtWithDisclosures),
                 FfiConverterTypeSDJWTSerializationFormat.lower(serializationFormat), $0
@@ -597,15 +597,14 @@ public class SdjwtHolderWrapper:
 
     public func createPresentation(claimsToDiscloseJson: String, nonce: String?, aud: String?, holderKey: EncodingKeyValue?, signAlg: String?) throws -> String {
         return try FfiConverterString.lift(
-            try
-                rustCallWithError(FfiConverterTypeSDJWTError.lift) {
-                    uniffi_sdjwtwrapper_fn_method_sdjwtholderwrapper_create_presentation(self.uniffiClonePointer(),
-                                                                                         FfiConverterString.lower(claimsToDiscloseJson),
-                                                                                         FfiConverterOptionString.lower(nonce),
-                                                                                         FfiConverterOptionString.lower(aud),
-                                                                                         FfiConverterOptionTypeEncodingKeyValue.lower(holderKey),
-                                                                                         FfiConverterOptionString.lower(signAlg), $0)
-                }
+            rustCallWithError(FfiConverterTypeSDJWTError.lift) {
+                uniffi_sdjwtwrapper_fn_method_sdjwtholderwrapper_create_presentation(self.uniffiClonePointer(),
+                                                                                     FfiConverterString.lower(claimsToDiscloseJson),
+                                                                                     FfiConverterOptionString.lower(nonce),
+                                                                                     FfiConverterOptionString.lower(aud),
+                                                                                     FfiConverterOptionTypeEncodingKeyValue.lower(holderKey),
+                                                                                     FfiConverterOptionString.lower(signAlg), $0)
+            }
         )
     }
 }
@@ -689,54 +688,50 @@ public class SdjwtIssuerWrapper:
 
     public func issueSdJwtAllLevel(userClaims: String, holderKey: JwkValue?, addDecoyClaims: Bool, serializationFormat: SdjwtSerializationFormat) throws -> String {
         return try FfiConverterString.lift(
-            try
-                rustCallWithError(FfiConverterTypeSDJWTError.lift) {
-                    uniffi_sdjwtwrapper_fn_method_sdjwtissuerwrapper_issue_sd_jwt_all_level(self.uniffiClonePointer(),
-                                                                                            FfiConverterString.lower(userClaims),
-                                                                                            FfiConverterOptionTypeJwkValue.lower(holderKey),
-                                                                                            FfiConverterBool.lower(addDecoyClaims),
-                                                                                            FfiConverterTypeSDJWTSerializationFormat.lower(serializationFormat), $0)
-                }
+            rustCallWithError(FfiConverterTypeSDJWTError.lift) {
+                uniffi_sdjwtwrapper_fn_method_sdjwtissuerwrapper_issue_sd_jwt_all_level(self.uniffiClonePointer(),
+                                                                                        FfiConverterString.lower(userClaims),
+                                                                                        FfiConverterOptionTypeJwkValue.lower(holderKey),
+                                                                                        FfiConverterBool.lower(addDecoyClaims),
+                                                                                        FfiConverterTypeSDJWTSerializationFormat.lower(serializationFormat), $0)
+            }
         )
     }
 
     public func issueSdJwtCustom(userClaims: String, jsonPaths: [String], holderKey: JwkValue?, addDecoyClaims: Bool, serializationFormat: SdjwtSerializationFormat) throws -> String {
         return try FfiConverterString.lift(
-            try
-                rustCallWithError(FfiConverterTypeSDJWTError.lift) {
-                    uniffi_sdjwtwrapper_fn_method_sdjwtissuerwrapper_issue_sd_jwt_custom(self.uniffiClonePointer(),
-                                                                                         FfiConverterString.lower(userClaims),
-                                                                                         FfiConverterSequenceString.lower(jsonPaths),
-                                                                                         FfiConverterOptionTypeJwkValue.lower(holderKey),
-                                                                                         FfiConverterBool.lower(addDecoyClaims),
-                                                                                         FfiConverterTypeSDJWTSerializationFormat.lower(serializationFormat), $0)
-                }
+            rustCallWithError(FfiConverterTypeSDJWTError.lift) {
+                uniffi_sdjwtwrapper_fn_method_sdjwtissuerwrapper_issue_sd_jwt_custom(self.uniffiClonePointer(),
+                                                                                     FfiConverterString.lower(userClaims),
+                                                                                     FfiConverterSequenceString.lower(jsonPaths),
+                                                                                     FfiConverterOptionTypeJwkValue.lower(holderKey),
+                                                                                     FfiConverterBool.lower(addDecoyClaims),
+                                                                                     FfiConverterTypeSDJWTSerializationFormat.lower(serializationFormat), $0)
+            }
         )
     }
 
     public func issueSdJwtNoSdClaims(userClaims: String, holderKey: JwkValue?, addDecoyClaims: Bool, serializationFormat: SdjwtSerializationFormat) throws -> String {
         return try FfiConverterString.lift(
-            try
-                rustCallWithError(FfiConverterTypeSDJWTError.lift) {
-                    uniffi_sdjwtwrapper_fn_method_sdjwtissuerwrapper_issue_sd_jwt_no_sd_claims(self.uniffiClonePointer(),
-                                                                                               FfiConverterString.lower(userClaims),
-                                                                                               FfiConverterOptionTypeJwkValue.lower(holderKey),
-                                                                                               FfiConverterBool.lower(addDecoyClaims),
-                                                                                               FfiConverterTypeSDJWTSerializationFormat.lower(serializationFormat), $0)
-                }
+            rustCallWithError(FfiConverterTypeSDJWTError.lift) {
+                uniffi_sdjwtwrapper_fn_method_sdjwtissuerwrapper_issue_sd_jwt_no_sd_claims(self.uniffiClonePointer(),
+                                                                                           FfiConverterString.lower(userClaims),
+                                                                                           FfiConverterOptionTypeJwkValue.lower(holderKey),
+                                                                                           FfiConverterBool.lower(addDecoyClaims),
+                                                                                           FfiConverterTypeSDJWTSerializationFormat.lower(serializationFormat), $0)
+            }
         )
     }
 
     public func issueSdJwtTopLevel(userClaims: String, holderKey: JwkValue?, addDecoyClaims: Bool, serializationFormat: SdjwtSerializationFormat) throws -> String {
         return try FfiConverterString.lift(
-            try
-                rustCallWithError(FfiConverterTypeSDJWTError.lift) {
-                    uniffi_sdjwtwrapper_fn_method_sdjwtissuerwrapper_issue_sd_jwt_top_level(self.uniffiClonePointer(),
-                                                                                            FfiConverterString.lower(userClaims),
-                                                                                            FfiConverterOptionTypeJwkValue.lower(holderKey),
-                                                                                            FfiConverterBool.lower(addDecoyClaims),
-                                                                                            FfiConverterTypeSDJWTSerializationFormat.lower(serializationFormat), $0)
-                }
+            rustCallWithError(FfiConverterTypeSDJWTError.lift) {
+                uniffi_sdjwtwrapper_fn_method_sdjwtissuerwrapper_issue_sd_jwt_top_level(self.uniffiClonePointer(),
+                                                                                        FfiConverterString.lower(userClaims),
+                                                                                        FfiConverterOptionTypeJwkValue.lower(holderKey),
+                                                                                        FfiConverterBool.lower(addDecoyClaims),
+                                                                                        FfiConverterTypeSDJWTSerializationFormat.lower(serializationFormat), $0)
+            }
         )
     }
 }
@@ -802,7 +797,7 @@ public class SdjwtVerifierWrapper:
     }
 
     public convenience init(sdJwtPresentation: String, publicKey: String, expectedAud: String?, expectedNonce: String?, serializationFormat: SdjwtSerializationFormat) throws {
-        self.init(unsafeFromRawPointer: try rustCallWithError(FfiConverterTypeSDJWTError.lift) {
+        try self.init(unsafeFromRawPointer: rustCallWithError(FfiConverterTypeSDJWTError.lift) {
             uniffi_sdjwtwrapper_fn_constructor_sdjwtverifierwrapper_new(
                 FfiConverterString.lower(sdJwtPresentation),
                 FfiConverterString.lower(publicKey),
@@ -913,56 +908,56 @@ public struct FfiConverterTypeSDJWTError: FfiConverterRustBuffer {
     public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SdjwtError {
         let variant: Int32 = try readInt(&buf)
         switch variant {
-        case 1: return .ConversionError(
-                message: try FfiConverterString.read(from: &buf)
+        case 1: return try .ConversionError(
+                message: FfiConverterString.read(from: &buf)
             )
 
-        case 2: return .DeserializationError(
-                message: try FfiConverterString.read(from: &buf)
+        case 2: return try .DeserializationError(
+                message: FfiConverterString.read(from: &buf)
             )
 
-        case 3: return .DataFieldMismatch(
-                message: try FfiConverterString.read(from: &buf)
+        case 3: return try .DataFieldMismatch(
+                message: FfiConverterString.read(from: &buf)
             )
 
-        case 4: return .DuplicateDigestError(
-                message: try FfiConverterString.read(from: &buf)
+        case 4: return try .DuplicateDigestError(
+                message: FfiConverterString.read(from: &buf)
             )
 
-        case 5: return .DuplicateKeyError(
-                message: try FfiConverterString.read(from: &buf)
+        case 5: return try .DuplicateKeyError(
+                message: FfiConverterString.read(from: &buf)
             )
 
-        case 6: return .InvalidDisclosure(
-                message: try FfiConverterString.read(from: &buf)
+        case 6: return try .InvalidDisclosure(
+                message: FfiConverterString.read(from: &buf)
             )
 
-        case 7: return .InvalidArrayDisclosureObject(
-                message: try FfiConverterString.read(from: &buf)
+        case 7: return try .InvalidArrayDisclosureObject(
+                message: FfiConverterString.read(from: &buf)
             )
 
-        case 8: return .InvalidPath(
-                message: try FfiConverterString.read(from: &buf)
+        case 8: return try .InvalidPath(
+                message: FfiConverterString.read(from: &buf)
             )
 
-        case 9: return .IndexOutOfBounds(
-                message: try FfiConverterString.read(from: &buf)
+        case 9: return try .IndexOutOfBounds(
+                message: FfiConverterString.read(from: &buf)
             )
 
-        case 10: return .InvalidState(
-                message: try FfiConverterString.read(from: &buf)
+        case 10: return try .InvalidState(
+                message: FfiConverterString.read(from: &buf)
             )
 
-        case 11: return .InvalidInput(
-                message: try FfiConverterString.read(from: &buf)
+        case 11: return try .InvalidInput(
+                message: FfiConverterString.read(from: &buf)
             )
 
-        case 12: return .KeyNotFound(
-                message: try FfiConverterString.read(from: &buf)
+        case 12: return try .KeyNotFound(
+                message: FfiConverterString.read(from: &buf)
             )
 
-        case 13: return .Unspecified(
-                message: try FfiConverterString.read(from: &buf)
+        case 13: return try .Unspecified(
+                message: FfiConverterString.read(from: &buf)
             )
 
         default: throw UniffiInternalError.unexpectedEnumCase
@@ -1126,7 +1121,7 @@ private struct FfiConverterSequenceString: FfiConverterRustBuffer {
         var seq = [String]()
         seq.reserveCapacity(Int(len))
         for _ in 0 ..< len {
-            seq.append(try FfiConverterString.read(from: &buf))
+            try seq.append(FfiConverterString.read(from: &buf))
         }
         return seq
     }
