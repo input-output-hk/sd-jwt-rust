@@ -7,7 +7,7 @@ import org.jlleitschuh.gradle.ktlint.tasks.KtLintCheckTask
 import java.net.URL
 import java.util.Base64
 
-val publishedMavenId: String = "io.iohk"
+val publishedMavenId: String = "io.iohk.atala"
 val os: OperatingSystem = OperatingSystem.current()
 val rustWrapperDir: File = File(rootDir.parent).resolve("wrapper")
 
