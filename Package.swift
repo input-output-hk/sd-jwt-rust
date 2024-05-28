@@ -35,8 +35,8 @@ let package = Package(
         // RELEASE
         .binaryTarget(
             name: "libsdjwt",
-            url: "https://github.com/input-output-hk/sd-jwt-rust/releases/download/0.1.0/libsdjwt.xcframework.zip",
-            checksum: "0bfaba65bb14b3023a4496c104097d15f022ca2fc30000979d91b6e0b15cca46"
+            url: "https://github.com/input-output-hk/sd-jwt-rust/releases/download/0.1.1/libsdjwt.xcframework.zip",
+            checksum: "b27da6ae5e173dffbb053b46439c6f190b04b4cd649fdf23c2ad80c16f66c31f"
         )
     ]
 )
