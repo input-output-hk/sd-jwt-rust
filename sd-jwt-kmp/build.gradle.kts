@@ -23,7 +23,7 @@ plugins {
 apply(plugin = "kotlinx-atomicfu")
 
 group = publishedMavenId
-version = "0.1"
+version = "0.1.1"
 
 buildscript {
     repositories {
