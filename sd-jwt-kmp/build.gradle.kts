@@ -23,7 +23,7 @@ plugins {
 apply(plugin = "kotlinx-atomicfu")
 
 group = publishedMavenId
-version = "0.1.1"
+version = "0.1.2"
 
 buildscript {
     repositories {
@@ -721,6 +721,14 @@ afterEvaluate {
     }
     tasks.withType<PublishToMavenLocal> {
         dependsOn(tasks.withType<Sign>())
+    }
+    tasks.publish {
+        dependsOn("publishAllPublicationsToSonatypeRepository")
+        mustRunAfter(":closeAndReleaseSonatypeStagingRepository")
+    }
+// makes sure stage repository is closed and release after publishing to it
+    tasks.named("publishAllPublicationsToSonatypeRepository") {
+        finalizedBy(":closeAndReleaseSonatypeStagingRepository")
     }
     tasks.withType<KotlinCompile> {
         dependsOn(buildRust)
