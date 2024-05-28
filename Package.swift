@@ -36,7 +36,7 @@ let package = Package(
         .binaryTarget(
             name: "libsdjwt",
             url: "https://github.com/input-output-hk/sd-jwt-rust/releases/download/0.1.0/libsdjwt.xcframework.zip",
-            checksum: "ca568b6ebea4a9485fc5f184fe09e1da1de4c3e707707daa4fdbc0b12424cbc6"
+            checksum: "0bfaba65bb14b3023a4496c104097d15f022ca2fc30000979d91b6e0b15cca46"
         )
     ]
 )
